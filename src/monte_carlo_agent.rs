@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::game::*;
 use crate::tree::*;
+use crate::tree_node::*;
 
 use crate::p;
 
@@ -17,28 +18,21 @@ impl MonteCarloAgent {
         let now = Instant::now();
         let mut i = 0;
         while now.elapsed().as_millis() < 500 {
-            let node_id = self.selection(root_id, &tree);
-            let state = tree.state(node_id);
-            if !tree.is_leaf(node_id) && state.reward().is_none() {
-                let (node_id, state) = self.expansion(node_id, &mut tree, state);
-                let final_state = state.simulate();
-//                 p!(final_state.pretty_print());
-//                 p!(final_state.reward());
+            let mut node_id = root_id;
+            let mut state = root_state.clone();
+            state.pretty_print();
+            node_id = self.selection(root_id, &tree, &state);
+            state = state.next_state(tree.get(node_id).action);
+            state.pretty_print();
+            if !state.legal_actions().is_empty() && state.reward().is_none() {
+                node_id = self.expansion(node_id, &mut tree, &state);
+                state = state.next_state(tree.get(node_id).action);
+                state = self.simulate(state);
             }
-//             tree.pprint();
-//             let mut winner = &tree.state(node_id, game).winner();
-// //             p!(winner);
-// //             p!(tree.state(node_id, &game));
-//             if !tree.is_leaf(node_id) && winner.is_none() {
-//                 node_id = self.expansion(node_id, &mut tree, game);
-// //                 winner = self.simulate(node_id, &tree, game);
-// //                 println!("Inner winner: {:?}", winner);
-//             }
-// //             self.back_prop(node_id, &mut tree, winner);
-// //             println!("Outer winner: {:?}", winner);
-// //             tree.pprint();
-// //             p!(self.best_action(0 as NodeId, &tree));
-// //             p!("---");
+            state.pretty_print();
+            p!(state.reward());
+            p!("-------");
+            self.back_prop(node_id, &mut tree, &state);
             if i > 14 {
                 break;
             }
@@ -48,7 +42,9 @@ impl MonteCarloAgent {
         self.best_action(0 as NodeId, &tree)
     }
 
-    fn best_action<S: GameState>(&self, node_id: NodeId, tree: &NodeTree<S>) -> Option<usize> {
+    fn best_action<S: GameState>(&self, node_id: NodeId,
+                                 tree: &NodeTree<S>
+                                 ) -> Option<usize> {
         let mut most_plays = f64::NEG_INFINITY;
         let mut best_wins = f64::NEG_INFINITY;
         let mut best_actions = Vec::new();
@@ -70,72 +66,67 @@ impl MonteCarloAgent {
         best_actions.choose(&mut rand::thread_rng()).copied()
     }
 
-//     fn back_prop(&self, mut node_id: NodeId, tree: &mut NodeTree,
-//                  winner: Option<usize>) {
-//         let node = tree.get_mut(node_id);
-//         let mut winner_id = node.player_id;
-//         match winner {
-//             Some(player_id) => {
-//                 if player_id == node.player_id {
-//                     winner_id = player_id;
-//                 }
-//             },
-//             None => {
-//                 winner_id = 0; // Draw
-//             },
-//         }
-//         loop {
-//             let node = tree.get_mut(node_id);
-//             if (winner_id == 0) {
-//                 node.wins += 0.5;
-//                 node.plays += 0.5;
-//             } else {
-//                 if node.player_id == winner_id {
-//                     node.wins += 1.0;
-//                 }
-//                 node.plays += 1.0;
-//             }
-//             match node.parent {
-//                 Some(id) => {
-//                     node_id = id;
-//                 },
-//                 None => break,
-//             }
-//         }
-//     }
-
-    fn expansion<S: GameState>(&self, mut node_id: NodeId, tree: &mut NodeTree<S>,
-                 mut state: impl GameState) -> (NodeId, impl GameState) {
-        if tree.is_expanded(node_id) {
-            return (node_id, state);
+    fn back_prop<S: GameState>(&self, mut node_id: NodeId,
+                               tree: &mut NodeTree<S>,
+                               state: &S) {
+        // Collect ancestor node_ids
+        let mut node_ids = vec![];
+        while let Some(par_id) = tree.get(node_id).parent {
+            node_ids.push(node_id);
+            node_id = par_id;
         }
-        let actions = tree.unexpanded_actions(node_id, &state);
+        // Then replay them
+        let mut state = tree.root_state.clone();
+        for node_id in node_ids.iter().rev() {
+            let node = tree.get_mut(*node_id);
+            p!(state.reward());
+            if let Some(score) = state.reward() {
+                node.wins += score;
+            }
+            node.plays += 1.0;
+            state = state.next_state(node.action);
+        }
+    }
+
+    fn simulate<S: GameState>(&self, mut state: S) -> S {
+        let mut actions = state.legal_actions();
+        while !actions.is_empty() {
+            let action = *actions.choose(&mut rand::thread_rng()).unwrap();
+            state = state.next_state(action);
+            actions = state.legal_actions();
+        }
+        state
+    }
+
+    fn expansion<S: GameState>(&self, mut node_id: NodeId,
+                               tree: &mut NodeTree<S>,
+                               state: &S
+                               ) -> NodeId {
+        if tree.is_expanded(node_id) {
+            return node_id;
+        }
+        let actions = tree.unexpanded_actions(node_id, state);
         let action = *actions.choose(&mut rand::thread_rng()).unwrap();
         let node = tree.get_mut(node_id);
 //         if actions.len() == 1 {
 //             node.status = NodeStatus::Expanded;
 //         }
-        state = state.next_state(action);
         let child_id = tree.add_node(action, node_id);
-        (child_id, state)
+        child_id
     }
 
     pub fn selection<S: GameState>(&self, mut node_id: NodeId,
-                                   tree: &NodeTree<S>
-                                  ) -> NodeId {
+                                   tree: &NodeTree<S>,
+                                   state: &S) -> NodeId {
         let mut node = tree.get(node_id);
-        // TODO this is looping forever, why?
-        p!(node_id);
-        p!(tree.is_expanded(node_id));
-        p!(tree.is_leaf(node_id));
-        tree.state(node_id).pretty_print();
-        tree.pretty_print();
-        while tree.is_expanded(node_id) && !tree.is_leaf(node_id) {
-            let c_val = 1.4; // Exploration value
-            let mut max = (node_id, f64::NEG_INFINITY); // (NodeId, uct)
-            for child_id in tree.children(node_id) {
+        while tree.is_expanded(node_id) && !state.legal_actions().is_empty() {
+            let child_ids = tree.children(node_id).collect::<Vec<NodeId>>();
+            let mut max = (child_ids[0], f64::NEG_INFINITY); // (NodeId, uct)
+            for child_id in child_ids {
                 let child = tree.get(child_id);
-                let uct = (child.wins / child.plays) + c_val *
+                // UCT is NaN when plays is zero but that's ok as long as
+                // something is chosen.
+                let uct = (child.wins / child.plays) +
                     f64::sqrt(2.0 * f64::ln(node.plays) / child.plays);
                 if uct > max.1 {
                     max = (child_id, uct);

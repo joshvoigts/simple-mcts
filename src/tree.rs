@@ -1,4 +1,5 @@
 use crate::game::*;
+use crate::tree_node::*;
 
 use crate::p;
 
@@ -109,25 +110,17 @@ impl<S: GameState> NodeTree<S> {
     }
 
     pub fn is_leaf(&self, node_id: NodeId) -> bool {
+//         self.children(node_id).next().is_none()
         let state = self.state(node_id);
         let actions = state.legal_actions();
         actions.is_empty()
-//         node.status == NodeStatus::Leaf
+// //         node.status == NodeStatus::Leaf
     }
 
     pub fn is_expanded(&self, node_id: NodeId) -> bool {
         let state = self.state(node_id);
         self.unexpanded_actions(node_id, &state).is_empty()
 //         node.status == NodeStatus::Expanded
-    }
-
-    pub fn is_expandable(&self, node_id: NodeId) -> bool {
-        if self.is_leaf(node_id) {
-            return false;
-        }
-        let state = self.state(node_id);
-        !self.unexpanded_actions(node_id, &state).is_empty()
-//         node.status == NodeStatus::Expandable
     }
 
     pub fn unexpanded_actions(&self, node_id: NodeId,
@@ -177,41 +170,6 @@ impl<'a, S: GameState> Iterator for NodeChildIterator<'a, S> {
         }
     }
 }
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum NodeStatus {
-    Expandable,
-    Expanded,
-    Leaf,
-}
-
-#[derive(Debug, Clone)]
-pub struct Node {
-    pub parent: Option<NodeId>,
-    pub first_child: Option<NodeId>,
-    pub next_sibling: Option<NodeId>,
-//     pub status: NodeStatus,
-    pub action: NodeAction,
-    pub wins: f64,
-    pub plays: f64,
-}
-
-impl Node {
-    pub fn new(action: NodeAction, parent: Option<NodeId>) -> Self {
-        Self {
-            parent: parent,
-            first_child: None,
-            next_sibling: None,
-//             status: NodeStatus::Expandable,
-            action: action,
-            wins: 0.0,
-            plays: 0.0,
-        }
-    }
-}
-
-pub type NodeId = usize;
-pub type NodeAction = usize;
 
 #[cfg(test)]
 mod tests {

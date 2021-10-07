@@ -1,12 +1,11 @@
 [package]
-name = "dominion"
+name = "simple-mcts"
 version = "0.1.0"
-authors = ["jvoigts <jvoigts@crossway.org>"]
-edition = "2018"
+authors = ["joshvoigts <joshvoigts@gmail.com>"]
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 rand = "0.7.3"
-indextree = "4.3.1"
 

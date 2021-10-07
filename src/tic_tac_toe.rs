@@ -84,23 +84,6 @@ impl GameState for TicTacToeState {
         }
         new_state
     }
-
-    fn simulate(&self) -> TicTacToeState {
-        let mut state = self.clone();
-        while state.reward().is_none() &&
-                !state.legal_actions().is_empty() {
-            let player = &state.players[state.player];
-            match player.choose_action(&state) {
-                Some(action) => {
-                    state = state.next_state(action);
-                },
-                None => {
-                    break;
-                }
-            }
-        }
-        state
-    }
 }
 
 #[cfg(test)]

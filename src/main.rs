@@ -16,6 +16,7 @@ mod tree;
 mod random_agent;
 mod game;
 mod tic_tac_toe;
+mod tree_node;
 
 mod p;
 

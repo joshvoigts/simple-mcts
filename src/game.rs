@@ -13,5 +13,4 @@ pub trait GameState: std::fmt::Debug + std::clone::Clone {
     fn legal_actions(&self) -> Vec<usize>;
     fn pretty_print(&self);
     fn next_state(&self, action: usize) -> Self;
-    fn simulate(&self) -> Self;
 }
